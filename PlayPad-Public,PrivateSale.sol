@@ -888,20 +888,17 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
         require(investor.isWhitelisted);
         require(maxBuyValue >= investor.totalBuyingAmountBNB.add(busdAmount));
         require(busdToken.transferFrom(msg.sender, address(this), busdAmount));
-        address investorAddressByRefno = _investorAddressByRefNo[refNo];
-        investorData storage referencedInvestor = _investorData[investorAddressByRefno];
         uint256 totalTokenAmount = calculateTokenAmount(busdAmount);
         investor.totalBuyingAmountBNB = investor.totalBuyingAmountBNB.add(busdAmount);
         investor.totalBuyingAmountToken = investor.totalBuyingAmountToken.add(totalTokenAmount);
         totalSoldAmountToken = totalSoldAmountToken.add(totalTokenAmount);
         totalSoldAmountBNB = totalSoldAmountBNB.add(busdAmount);
-        referencedInvestor.refPuan = referencedInvestor.refPuan.add(10);
         emit NewBuying(msg.sender, busdAmount, block.timestamp);
     }
 
     
     function withdrawBusd() external payable nonReentrant onlyOwner {
-        require(busdToken.transfer(msg.sender, address(this).balance));
+        require(busdToken.transfer(msg.sender, busdToken.balanceOf(address(this))));
     }
     
       function changeLockTime(uint256 _lockTime) external nonReentrant onlyOwner {
@@ -977,14 +974,11 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
         investor.isWhitelisted = true;
         investor.refNo = _randomness;
         whitelistedAddresses.push(allParticipantAddresses[whitelisted]);
-        _investorAddressByRefNo[_randomness] = allParticipantAddresses[whitelisted];
     }
     
     function getWhitelistedAddresses() public view returns(address[] memory){
         return whitelistedAddresses;
     }
-    
-     
     
 }
     
