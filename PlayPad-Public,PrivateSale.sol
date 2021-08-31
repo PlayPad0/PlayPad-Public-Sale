@@ -810,11 +810,15 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
         uint claimRound;
         uint256 lastClaimDate;
         uint256 claimedValue;
+        uint256 refNo;
+        address investorAddress;
+        uint256 refPuan;
     }
     
     mapping(address => investorData) public _investorData;
     mapping(uint256 => roundDatas) public _roundDatas;
     mapping(bytes32 => bool) public isRequestIdValid;
+    mapping(uint256 => address) public _investorAddressByRefNo;
     
     bytes32[] public requestIds;
     address[] public allParticipantAddresses;
@@ -877,24 +881,35 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
        return allParticipantAddresses;
     }
     
-    function buyToken(uint256 busdAmount) external nonReentrant isContractActive {
+    function buyToken(uint256 busdAmount, uint256 refNo) external nonReentrant isContractActive {
         require(block.timestamp >= startTime);
         require(block.timestamp <= endTime);
         investorData storage investor = _investorData[msg.sender];
         require(investor.isWhitelisted);
         require(maxBuyValue >= investor.totalBuyingAmountBNB.add(busdAmount));
         require(busdToken.transferFrom(msg.sender, address(this), busdAmount));
+        address investorAddressByRefno = _investorAddressByRefNo[refNo];
+        investorData storage referencedInvestor = _investorData[investorAddressByRefno];
         uint256 totalTokenAmount = calculateTokenAmount(busdAmount);
         investor.totalBuyingAmountBNB = investor.totalBuyingAmountBNB.add(busdAmount);
         investor.totalBuyingAmountToken = investor.totalBuyingAmountToken.add(totalTokenAmount);
         totalSoldAmountToken = totalSoldAmountToken.add(totalTokenAmount);
         totalSoldAmountBNB = totalSoldAmountBNB.add(busdAmount);
+        referencedInvestor.refPuan = referencedInvestor.refPuan.add(10);
         emit NewBuying(msg.sender, busdAmount, block.timestamp);
     }
 
     
-    function withdrawBNB() external payable nonReentrant onlyOwner {
-        payable(address(msg.sender)).transfer(address(this).balance);
+    function withdrawBusd() external payable nonReentrant onlyOwner {
+        require(busdToken.transfer(msg.sender, address(this).balance));
+    }
+    
+      function changeLockTime(uint256 _lockTime) external nonReentrant onlyOwner {
+        lockTime = _lockTime;
+    }
+    
+    function withdrawTokens() external nonReentrant onlyOwner {
+        require(saleToken.transfer(msg.sender, saleToken.balanceOf(address(this))));
     }
     
     function claimTokens() external nonReentrant {
@@ -903,8 +918,8 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
         require(investor.isWhitelisted);
         uint256 investorRoundNumber = investor.claimRound;
         roundDatas storage roundDetail = _roundDatas[investorRoundNumber];
-        require(investor.claimedValue <= investor.totalBuyingAmountToken.add(investor.totalBuyingAmountToken.mul(roundDetail.roundPercent).div(100)));
         require(block.timestamp >= roundDetail.roundStartDate);
+        require(investor.totalBuyingAmountToken >= investor.claimedValue.add(investor.totalBuyingAmountToken.mul(roundDetail.roundPercent).div(100)));
         require(saleToken.transfer(msg.sender, investor.totalBuyingAmountToken.mul(roundDetail.roundPercent).div(100)));
         investor.claimRound = investor.claimRound.add(1);
         investor.lastClaimDate = block.timestamp;
@@ -917,9 +932,10 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
     roundDetail.roundPercent = _claimPercent;
     }
     
-    function addWhilistedAddresses(address _address) external onlyOwner nonReentrant {
+    function addWhilistedAddresses(address _address, uint256 refNo) external onlyOwner nonReentrant {
     investorData storage investor = _investorData[_address];
     investor.isWhitelisted = true; 
+    investor.refNo = refNo;
     whitelistedAddresses.push(_address);
     }
     
@@ -959,21 +975,15 @@ contract PlayPadSale is VRFConsumerBase, ReentrancyGuard, Ownable {
         uint256 whitelisted = _randomness.mod(allParticipantAddresses.length);
         investorData storage investor = _investorData[allParticipantAddresses[whitelisted]];
         investor.isWhitelisted = true;
+        investor.refNo = _randomness;
         whitelistedAddresses.push(allParticipantAddresses[whitelisted]);
+        _investorAddressByRefNo[_randomness] = allParticipantAddresses[whitelisted];
     }
     
     function getWhitelistedAddresses() public view returns(address[] memory){
         return whitelistedAddresses;
     }
     
-    
-    
-    
-    
-    
-    
-    
-
      
     
 }
